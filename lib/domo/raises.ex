@@ -148,11 +148,13 @@ defmodule Domo.Raises do
   end
 
   def maybe_raise_incorrect_placement!(caller_env) do
+    aliases = caller_env.aliases
     module = caller_env.module
     file = caller_env.file
     line = caller_env.line
 
     types = Module.get_attribute(module, :type)
+
     opaques = Module.get_attribute(module, :opaque)
 
     quoted_types =
@@ -165,7 +167,7 @@ defmodule Domo.Raises do
     if in_struct? do
       t_type = ModuleInspector.find_t_type(quoted_types)
 
-      unless struct_type?(t_type, module) do
+      unless struct_type?(t_type, module, aliases) do
         raise(CompileError,
           file: file,
           line: line,
@@ -187,14 +189,29 @@ defmodule Domo.Raises do
     end
   end
 
-  defp struct_type?({:ok, type_quoted, _}, expected_module) do
+  defp struct_type?({:ok, type_quoted, _}, expected_module, aliases) do
     case type_quoted do
       {:%, _, [module, {:%{}, _, _}]} ->
         case module do
-          {:__MODULE__, _, _} -> true
-          {:__aliases__, _, _} = an_alias -> Alias.alias_to_atom(an_alias) == expected_module
-          module when is_atom(module) -> module == expected_module
-          _typo_after_percentage -> false
+          {:__MODULE__, _, _} ->
+            true
+
+          {:__aliases__, context, module_parts} when length(module_parts) == 1 ->
+            alias_key = Module.concat(module_parts)
+            maybe_expanded = Keyword.get(aliases, alias_key, alias_key)
+
+            an_alias = {:__aliases__, context, [maybe_expanded]}
+
+            Alias.alias_to_atom(an_alias) == expected_module
+
+          {:__aliases__, _, _} = an_alias ->
+            Alias.alias_to_atom(an_alias) == expected_module
+
+          module when is_atom(module) ->
+            module == expected_module
+
+          _typo_after_percentage ->
+            false
         end
 
       _ ->
@@ -202,7 +219,7 @@ defmodule Domo.Raises do
     end
   end
 
-  defp struct_type?(_type_quoted, _expected_module) do
+  defp struct_type?(_type_quoted, _expected_module, _aliases) do
     false
   end
 

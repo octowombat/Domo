@@ -30,7 +30,9 @@ defmodule DomoTest do
       Library.Shelve,
       MemonlyStruct,
       Money,
+      Namespace.Point3D,
       Order,
+      Point3D,
       PostFieldAndNestedPrecond,
       PostFieldPrecond,
       PostFieldPrecond.CommentNoTPrecond,
@@ -1224,6 +1226,27 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                        )
                    end
     end
+
+    test "module with simple alias can be compiled" do
+      DomoMixTask.start_plan_collection()
+      compile_point_3d()
+      DomoMixTask.process_plan({:ok, []}, [])
+      assert Kernel.function_exported?(Point3D, :new!, 1)
+    end
+
+    test "module with namespaced alias can be compiled" do
+      DomoMixTask.start_plan_collection()
+      compile_namespaced_point_3d()
+      DomoMixTask.process_plan({:ok, []}, [])
+      assert Kernel.function_exported?(Namespace.Point3D, :new!, 1)
+    end
+
+    test "module with namespaced alias and using as, can be compiled" do
+      DomoMixTask.start_plan_collection()
+      compile_namespaced_point_3d_with_as()
+      DomoMixTask.process_plan({:ok, []}, [])
+      assert Kernel.function_exported?(OuterNamespace.InnerNamespace.Point3D, :new!, 1)
+    end
   end
 
   defp compile_account_any_precond_struct do
@@ -1945,6 +1968,81 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       @type t :: %__MODULE__{#{opts[:t]}}
 
       #{opts[:precond_t]}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_point_3d do
+    path = src_path("/point_3d.ex")
+
+    File.write!(path, """
+    defmodule Point3D do
+      alias __MODULE__
+      use Domo
+
+      @enforce_keys [:x, :y, :z]
+      defstruct [:x, :y, :z]
+
+      @type t :: %Point3D{
+              x: number(),
+              y: number(),
+              z: number()
+            }
+
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_namespaced_point_3d do
+    path = src_path("/namespaced_point_3d.ex")
+
+    File.write!(path, """
+    defmodule Namespace.Point3D do
+      alias __MODULE__
+      use Domo
+
+      @enforce_keys [:x, :y, :z]
+      defstruct [:x, :y, :z]
+
+      @type t :: %Point3D{
+              x: number(),
+              y: number(),
+              z: number()
+            }
+
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_namespaced_point_3d_with_as do
+    path = src_path("/namespaced_point_3d_with_as.ex")
+
+    File.write!(path, """
+    defmodule OuterNamespace.InnerNamespace.Point3D do
+      alias __MODULE__, as: Point
+      use Domo
+
+      @enforce_keys [:x, :y, :z]
+      defstruct [:x, :y, :z]
+
+      @type t :: %Point{
+              x: number(),
+              y: number(),
+              z: number()
+            }
+
+      # Use the Domo created constructor as a test of the compilation handling
+      def make(args), do: Point.new!(args)
+
     end
     """)
 

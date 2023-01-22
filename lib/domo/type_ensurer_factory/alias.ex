@@ -41,7 +41,7 @@ defmodule Domo.TypeEnsurerFactory.Alias do
   end
 
   def alias_to_atom({:__aliases__, options, module_parts}) do
-    case Keyword.get(options, :alias) do
+    case Keyword.get(options, :alias, false) do
       false -> Module.concat(module_parts)
       full_name -> full_name
     end
